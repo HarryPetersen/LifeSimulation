@@ -11,7 +11,7 @@ enum class CellType{
 
 class Cell {
     sf::Vector2f position{0.f, 0.f};
-    sf::Vector2f velocity{0.f, 0.f};
+    sf::Vector2f velocity{10.0f, 10.0f};
     double energy{};
     double size{};
     double age{};
@@ -24,12 +24,21 @@ public:
     Cell() {
         shape.setRadius(10.f);
         shape.setFillColor(sf::Color::Green);
+        shape.setPosition(position);
         std::cout << "Cell created\n";
     }
 
     sf::Vector2f getPosition() const {
         return position;
     }
+
+    void update(float dt){
+        position += velocity * dt;
+        shape.setPosition(position);
+    }
+
+private:
+    
 };
 
 Cell createCell(){
@@ -43,21 +52,28 @@ void initialise(std::vector<Cell>& cells){
     cells.push_back(cell);
 }
 
-void render(std::vector<Cell>& cells, sf::RenderWindow& window){
-    for(Cell cell: cells){
+void update(std::vector<Cell>& cells, float dt){
+    for(Cell& cell: cells){
+        cell.update(dt);
+    }
+}
+
+void render(const std::vector<Cell>& cells, sf::RenderWindow& window){
+    for(const Cell& cell: cells){
         window.draw(cell.shape);
     }
 }
 
 int main(){
-    sf::RenderWindow window(sf::VideoMode({500, 500}), "SFML works!");
+    sf::RenderWindow window(sf::VideoMode({500, 500}), "Simulation");
     std::cout << "Creating Window\n";
-
+    sf::Clock clock;
     std::vector<Cell> cells;
 
     initialise(cells);
 
     while(window.isOpen()){
+        float dt = clock.restart().asSeconds();
         while(const std::optional event = window.pollEvent()){
             if(event->is<sf::Event::Closed>()) window.close();
 
@@ -72,7 +88,7 @@ int main(){
             }
         }
 
-        
+        update(cells, dt);
         window.clear();
         render(cells, window);
         window.display();
