@@ -2,31 +2,28 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "type": "cppbuild",
+            "label": "Configure LifeSimulation",
+            "type": "process",
+            "command": "cmake",
+            "args": ["-S", "${workspaceFolder}", "-B", "${workspaceFolder}/build"],
+            "problemMatcher": []
+        },
+        {
             "label": "Build SFML Project",
-            "command": "C:/msys64/ucrt64/bin/g++.exe",
-            "args": [
-                "-fdiagnostics-color=always",
-                "-g",
-                "${workspaceFolder}/main.cpp",
-                "-o",
-                "${workspaceFolder}/main.exe",
-                "-std=c++17",
-                "-lsfml-graphics",
-                "-lsfml-window",
-                "-lsfml-system"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "problemMatcher": [
-                "$gcc"
-            ],
-            "group": {
-                "kind": "build",
-                "isDefault": true
-            },
-            "detail": "Build C++ project with SFML 3"
+            "type": "process",
+            "command": "cmake",
+            "args": ["--build", "${workspaceFolder}/build", "--config", "Debug"],
+            "dependsOn": "Configure LifeSimulation",
+            "problemMatcher": ["$gcc"],
+            "group": {"kind": "build", "isDefault": true}
+        },
+        {
+            "label": "Test LifeSimulation",
+            "type": "process",
+            "command": "ctest",
+            "args": ["--test-dir", "${workspaceFolder}/build", "-C", "Debug", "--output-on-failure"],
+            "dependsOn": "Build SFML Project",
+            "problemMatcher": []
         }
     ]
 }
