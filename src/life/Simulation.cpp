@@ -23,11 +23,13 @@ void Simulation::populate() {
         cells.emplace_back(nextCellId_++, CellType::Photosynthetic, Vec2{0.f, -26.f});
         cells.emplace_back(nextCellId_++, CellType::Storage, Vec2{0.f, 26.f});
         cells.emplace_back(nextCellId_++, CellType::Defensive, Vec2{-26.f, 26.f});
+        cells.emplace_back(nextCellId_++, i % 3 == 0 ? CellType::Predator : CellType::Adhesive, Vec2{26.f, 26.f});
         organisms_.emplace_back(nextOrganismId_++, Vec2{x(random_), y(random_)}, std::move(cells));
     }
 }
 void Simulation::reset(std::uint32_t seed) {
     nutrients_ = NutrientField(nutrients_.extent());
+    interactions_.reset();
     random_.seed(seed);
     organisms_.clear();
     nextCellId_ = nextOrganismId_ = 1;
@@ -51,6 +53,8 @@ void Simulation::step() {
     nutrients_.update(dt);
     const float sunlight = light();
     for (auto& organism : organisms_) organism.update(dt, nutrients_, sunlight, random_, nextCellId_);
+    interactions_.update(organisms_, nutrients_.extent(), dt);
+    for (auto& organism : organisms_) organism.removeDead(nutrients_);
     std::erase_if(organisms_, [](const Organism& organism) { return !organism.alive(); });
     const auto existing = organisms_.size();
     for (std::size_t i = 0; i < existing && organisms_.size() < maxOrganisms; ++i) {
@@ -59,10 +63,19 @@ void Simulation::step() {
             organisms_.push_back(std::move(*child));
         }
     }
+    for (std::size_t i = 0; i < organisms_.size() && organisms_.size() < maxOrganisms; ++i) {
+        if (auto detached = organisms_[i].fragment(nextOrganismId_, nutrients_.extent())) {
+            ++nextOrganismId_;
+            organisms_.push_back(std::move(*detached));
+        }
+    }
+    interactions_.prune(organisms_);
     ++ticks_;
 }
 SimulationStats Simulation::stats() const noexcept {
     SimulationStats result;
+    result.bonds = interactions_.bonds().size();
+    result.contacts = interactions_.contacts();
     result.organisms = organisms_.size();
     result.elapsed = static_cast<double>(ticks_) * fixedStep;
     for (const auto& organism : organisms_) {

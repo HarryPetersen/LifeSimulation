@@ -12,7 +12,7 @@ void Genome::validate() const {
     if (!valid(radius, 3.f, 12.f) || !valid(metabolism, 0.1f, 3.f) ||
         !valid(uptake, 0.5f, 10.f) || !valid(thrust, 5.f, 90.f) ||
         !valid(sensing, 10.f, 120.f) || !valid(lifespan, 30.f, 600.f) ||
-        !valid(divisionAge, 3.f, 60.f) || !valid(mutationRate, 0.f, 1.f)) {
+        !valid(divisionAge, 3.f, 60.f) || !valid(mutationRate, 0.f, 1.f) || !valid(attack, 1.f, 30.f) || !valid(adhesion, 0.1f, 1.f)) {
         throw std::invalid_argument("Genome trait outside supported range");
     }
 }
@@ -32,6 +32,8 @@ Genome Genome::mutated(std::mt19937& random) const {
     change(result.lifespan, 30.f, 600.f);
     change(result.divisionAge, 3.f, 60.f);
     change(result.mutationRate, 0.f, 1.f);
+    change(result.attack, 1.f, 30.f);
+    change(result.adhesion, 0.1f, 1.f);
     return result;
 }
 }

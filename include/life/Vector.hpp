@@ -16,6 +16,16 @@ struct Vec2 {
         return magnitude > 0.00001f ? *this * (1.f / magnitude) : Vec2{};
     }
 };
+inline constexpr float dot(Vec2 a, Vec2 b) { return a.x * b.x + a.y * b.y; }
+inline constexpr float cross(Vec2 a, Vec2 b) { return a.x * b.y - a.y * b.x; }
+inline constexpr Vec2 perpendicular(Vec2 value) { return {-value.y, value.x}; }
+inline Vec2 rotate(Vec2 value, float angle) {
+    const float c = std::cos(angle), s = std::sin(angle);
+    return {c * value.x - s * value.y, s * value.x + c * value.y};
+}
+inline Vec2 displacement(Vec2 from, Vec2 to, Vec2 extent) {
+    return {std::remainder(to.x - from.x, extent.x), std::remainder(to.y - from.y, extent.y)};
+}
 inline bool finite(Vec2 value) { return std::isfinite(value.x) && std::isfinite(value.y); }
 inline float wrap(float value, float extent) {
     const float result = std::fmod(value, extent);

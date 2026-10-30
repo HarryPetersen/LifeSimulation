@@ -12,7 +12,7 @@ enum class CellPhase : std::uint8_t { Growing, Mature, Dividing, Dead };
 class Cell {
 public:
     Cell(std::uint64_t id, CellType type, Vec2 localPosition, Genome genome = {});
-    void update(float dt, Vec2 organismPosition, NutrientField& nutrients, float light);
+    void update(float dt, Vec2 worldPosition, NutrientField& nutrients, float light);
     [[nodiscard]] std::optional<Cell> divide(std::uint64_t childId, Vec2 offset, std::mt19937& random);
     void damage(float amount);
     float withdraw(float amount);
@@ -26,10 +26,12 @@ public:
     [[nodiscard]] float energy() const noexcept { return energy_; }
     [[nodiscard]] float capacity() const noexcept { return type_ == CellType::Storage ? 180.f : 100.f; }
     [[nodiscard]] float health() const noexcept { return health_; }
+    [[nodiscard]] float distress() const noexcept { return distress_; }
     [[nodiscard]] float age() const noexcept { return age_; }
     [[nodiscard]] bool alive() const noexcept { return phase_ != CellPhase::Dead; }
     [[nodiscard]] bool readyToDivide() const noexcept { return phase_ == CellPhase::Dividing; }
 private:
+    friend class Organism;
     std::uint64_t id_;
     CellType type_;
     Vec2 position_;
@@ -40,5 +42,6 @@ private:
     float growth_{0.5f};
     float health_{100.f};
     float energy_{50.f};
+    float distress_{};
 };
 }

@@ -54,6 +54,7 @@ int main() {
             if (titleTimer >= 0.25f) {
                 const auto stats = simulation.stats();
                 window.setTitle("Life | Organisms " + std::to_string(stats.organisms) + " | Cells " + std::to_string(stats.cells) +
+                    " | Contacts " + std::to_string(stats.contacts) + " | Bonds " + std::to_string(stats.bonds) +
                     " | Generation " + std::to_string(stats.highestGeneration) + " | " + std::to_string(speed) +
                     "x | " + (paused ? "Paused" : "Running") + " | Space pause, R reset, N nutrients, arrows speed/step");
                 titleTimer = 0.f;

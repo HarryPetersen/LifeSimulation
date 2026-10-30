@@ -14,7 +14,7 @@ void requireAmount(float amount) {
 Cell::Cell(std::uint64_t id, CellType type, Vec2 localPosition, Genome genome)
     : id_(id), type_(type), position_(localPosition), genome_(genome) {
     genome_.validate();
-    if (!finite(position_) || static_cast<unsigned>(type) > static_cast<unsigned>(CellType::Defensive))
+    if (!finite(position_) || static_cast<unsigned>(type) > static_cast<unsigned>(CellType::Predator))
         throw std::invalid_argument("Invalid cell position or type");
 }
 float Cell::withdraw(float amount) {
@@ -31,17 +31,19 @@ float Cell::receive(float amount) {
 }
 void Cell::damage(float amount) {
     requireAmount(amount);
+    if (amount > 0.f && alive()) distress_ = std::min(1.f, distress_ + amount * 0.15f);
     health_ = std::max(0.f, health_ - amount * (type_ == CellType::Defensive ? 0.4f : 1.f));
     if (health_ == 0.f) phase_ = CellPhase::Dead;
 }
-void Cell::update(float dt, Vec2 organismPosition, NutrientField& nutrients, float light) {
-    if (!std::isfinite(dt) || dt < 0.f || dt > 0.1f || !finite(organismPosition) ||
+void Cell::update(float dt, Vec2 worldPosition, NutrientField& nutrients, float light) {
+    if (!std::isfinite(dt) || dt < 0.f || dt > 0.1f || !finite(worldPosition) ||
         !std::isfinite(light) || light < 0.f || light > 1.f) throw std::invalid_argument("Invalid cell environment");
     if (!alive() || dt == 0.f) return;
+    distress_ = std::max(0.f, distress_ - dt * 0.3f);
     age_ += dt;
     sinceDivision_ += dt;
     const float uptakeScale = type_ == CellType::General ? 1.4f : 0.7f;
-    receive(nutrients.consume(organismPosition + position_, std::min(capacity() - energy_, genome_.uptake * uptakeScale * dt)));
+    receive(nutrients.consume(worldPosition, std::min(capacity() - energy_, genome_.uptake * uptakeScale * dt)));
     if (type_ == CellType::Photosynthetic) receive(6.f * light * dt);
     const float cost = genome_.metabolism * (type_ == CellType::Sensory ? 1.4f : 1.f) * dt;
     const float paid = withdraw(cost);
@@ -67,7 +69,7 @@ std::optional<Cell> Cell::divide(std::uint64_t childId, Vec2 offset, std::mt1993
     if (!readyToDivide() || energy_ < 80.f || !alive()) return std::nullopt;
     CellType childType = type_;
     if (std::bernoulli_distribution(genome_.mutationRate)(random))
-        childType = static_cast<CellType>(std::uniform_int_distribution<int>(0, 5)(random));
+        childType = static_cast<CellType>(std::uniform_int_distribution<int>(0, 7)(random));
     Cell child(childId, childType, position_ + offset, genome_.mutated(random));
     energy_ -= 12.f;
     child.energy_ = energy_ * 0.5f;

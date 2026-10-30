@@ -1,77 +1,87 @@
 # LifeSimulation
 
-A C++20 cellular ecosystem with an SFML 3 frontend. Organisms are colonies of specialized cells competing for a regenerating nutrient field. The core has no graphics dependency and can run in tests or another frontend.
+A C++20 artificial-life simulation with an SFML 3 frontend. Specialized cells form colonies that grow, move, collide, cooperate, hunt, reproduce, and fragment when their structure is broken.
 
-## Build
+## Compile and run
 
-Requires CMake 3.22+, a C++20 compiler, and SFML 3 when building the graphical application.
-
-```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --config Release
-ctest --test-dir build -C Release --output-on-failure
-```
-
-Run `build/LifeSimulation` (or `build/Release/LifeSimulation.exe` with a multi-configuration Windows generator). If SFML is installed outside the normal search path, pass `-DCMAKE_PREFIX_PATH=/path/to/sfml` when configuring. The existing VS Code settings use MSYS2 UCRT64; run the build task with its `bin` directory on PATH. The task now builds every source through CMake.
-
-Headless build:
+Use a C++20 compiler and SFML 3. From an MSYS2 UCRT64 shell with SFML installed:
 
 ```sh
-cmake -S . -B build-headless -DLIFE_BUILD_APP=OFF
-cmake --build build-headless
-ctest --test-dir build-headless --output-on-failure
+g++ -std=c++20 -O2 -Iinclude src/main.cpp src/life/*.cpp -o LifeSimulation.exe -lsfml-graphics -lsfml-window -lsfml-system
+./LifeSimulation.exe
 ```
 
-For GCC/Clang memory and undefined-behavior checks, add `-DLIFE_ENABLE_SANITIZERS=ON` to a separate Debug build.
+On Linux with SFML 3 available through pkg-config:
+
+```sh
+g++ -std=c++20 -O2 -Iinclude src/main.cpp src/life/*.cpp -o LifeSimulation $(pkg-config --cflags --libs sfml-graphics)
+./LifeSimulation
+```
+
+Compile all the `.cpp` files, including the new `SpatialGrid.cpp` and `InteractionSystem.cpp`. For a custom SFML installation, add its include/library paths to the command and make its shared libraries available at runtime.
+
+The remaining VS Code configuration is for IntelliSense only. It sets C++20, the project include path, and the original MSYS2 UCRT64 compiler location. Adjust `compilerPath` if your installation differs.
+
+`life::Simulation::stats()` is declared publicly in `include/life/Simulation.hpp`, returns the self-contained `SimulationStats` type, and is implemented in `src/life/Simulation.cpp`. If VS Code still reports that this member is missing after updating the branch, run **C/C++: Reset IntelliSense Database**, reload the window, and ensure you opened this repository root. Check that your editor is using the included C++20 configuration and is not resolving an older copy of `Simulation.hpp`.
 
 ## Controls
 
 | Key | Action |
 | --- | --- |
 | Space | Pause or resume |
-| Right | Advance one simulation tick while paused |
-| Up / Down | Double / halve speed, between 0.25x and 4x |
-| R | Reset to the initial seed |
-| N | Toggle nutrient field visibility |
+| Right | Advance one tick while paused |
+| Up / Down | Double / halve speed, from 0.25x to 4x |
+| R | Reset the population, resources, bonds, identities, and random seed |
+| N | Toggle nutrient visibility |
 | Escape | Close |
 
-The title shows organism count, cell count, highest offspring generation, speed, and pause state. Window resizing preserves the world's aspect ratio. Nutrient-rich patches are brighter. Cell nuclei brighten with energy; membranes darken with damage; division-ready cells have white outlines.
+The title shows organisms, cells, physical contacts during the last tick, active adhesive bonds, highest offspring generation, and speed. Resizing preserves the world aspect ratio.
 
-## Cell system
+## Cell roles
 
-| Type | Color | Specialization |
+| Type | Color | Behavior |
 | --- | --- | --- |
 | General | Mint | Enhanced nutrient uptake |
-| Movement | Blue | Converts energy into organism thrust |
-| Sensory | Amber | Detects nutrient gradients and steers the colony |
-| Photosynthetic | Green | Generates energy from the day/night light cycle |
-| Storage | Purple | Increased energy capacity; shares reserves with neighbors |
-| Defensive | Coral | Reduces incoming damage, including environmental damage |
+| Movement | Blue | Pays energy to propel its colony |
+| Sensory | Amber | Finds nutrients, avoids hostile predators and distress signals |
+| Photosynthetic | Green | Generates energy from the day/night cycle |
+| Storage | Purple | Holds larger reserves and shares with connected neighbors |
+| Defensive | Coral | Resists damage and retaliates against attacking predators |
+| Adhesive | Cyan | Forms physical connections with other non-predatory cells |
+| Predator | Orange | Steers toward unrelated colonies, damages cells, and steals energy on contact |
 
-Every cell owns its genome, stable identity, local position, age, health, energy, growth, and lifecycle phase. A genome contains bounded traits for size, metabolism, nutrient uptake, thrust, sensing range, lifespan, division timing, and mutation probability.
+Every cell has a stable identity, genome, position, health, energy, age, growth phase, and decaying distress signal. Genomes bound size, metabolism, uptake, thrust, sensing, lifespan, division timing, mutation rate, attack strength, and adhesion strength. Daughters can inherit mutated traits and specializations.
 
-Cells absorb local nutrients, pay maintenance costs, repair damage when reserves permit, grow, and mature. Starvation and senescence cause damage. A mature cell with sufficient energy and health becomes division-ready. Division requires free space, spends 12 energy, splits remaining energy between parent and daughter, resets growth, and applies bounded mutations to the daughter. Specialization can also mutate. Parent age is retained; daughter age starts at zero.
+Cells consume local nutrients, pay maintenance, repair damage, grow, and divide when age, health, energy, and available space permit. Division spends energy and shares the remaining reserve between parent and daughter. Starvation, ageing, impact, and attacks cause damage. Dead cells recycle reserves and biomass exactly once before removal.
 
-Adjacent living cells exchange energy according to relative reserve fullness. Sensory cells combine local nutrient gradients into a heading; movement cells pay for thrust. Motion uses organism mass and exponential drag. Dead cells return part of their reserves and biomass to the field and are removed exactly once. Empty organisms disappear.
+## Collisions and interactions
 
-Colonies of at least 12 cells may split after a 20-second cooldown if their average reserve is at least 30. Fission transfers existing cells and their energy to an offspring organism with a new identity and incremented generation. Colony and global population limits bound simulation cost (24 cells per colony, 128 organisms). A blocked division waits for a later tick without spending energy or assigning an identity.
+The periodic spatial grid finds nearby cell pairs across wraparound boundaries. Physical contacts use cell radii and colony mass/inertia. The solver separates penetrations, applies normal impulses and friction, transfers angular momentum, and damages cells on hard impacts. Physics uses substeps of at most 1/120 second with four contact passes each. Speed and angular velocity are bounded for stability.
 
-## Architecture
+Cells within a colony share a rigid structure. Local coordinates rotate with the colony; rendering, sensing, feeding, and collision detection all use the same world transform. A colony's center of mass is updated as cells grow, divide, or die while preserving cell world positions. Internal structural links are shown in muted gray.
 
-- `Vector.hpp`: graphics-independent vector and toroidal coordinate operations.
-- `Genome.hpp/.cpp`: validated heritable traits and bounded mutation.
-- `NutrientField.hpp/.cpp`: periodic grid, resource consumption/deposition, diffusion, regeneration, sensing.
-- `Cell.hpp/.cpp`: cell state, metabolism, damage, growth, and division.
-- `Organism.hpp/.cpp`: colony ownership, energy exchange, sensing, locomotion, growth, and fission.
-- `Simulation.hpp/.cpp`: seeded randomness, stable identity allocation, fixed-step scheduling, population management, statistics.
-- `Renderer.hpp/.cpp`: SFML presentation without simulation state mutation.
-- `main.cpp`: window, input, timing, and application error reporting.
-- `tests/SimulationTests.cpp`: headless lifecycle, specialization, resource, reproduction, repeatability, and long-run invariant checks.
+Adhesive cells can join cells in other colonies through energy-funded spring/damper bonds. Each cell has at most two external bonds, and the world has at most 512. Bonds stretch, damp relative motion, share reserves, and transmit distress cues. They break when overextended, starved, or missing an endpoint. Cyan lines show active bonds. Endpoint identities remain valid through colony fission; dead endpoints are pruned.
 
-Updates run at 60 fixed ticks per simulated second. `advance` accepts real elapsed seconds and caps catch-up at 0.25 seconds per call; stalls intentionally slow simulation time rather than produce an unbounded update backlog. `step` advances exactly one tick. Lower-level update functions accept finite steps from zero through 0.1 seconds. Public mutation boundaries reject invalid inputs.
+Predators pay energy to attack unrelated cells in contact range. Victim defenses reduce damage and stolen energy; surviving defensive cells spend energy to retaliate. Founder lineage is inherited during reproduction and fragmentation, so descendants recognize kin. Sensory cells steer away from unrelated predators and nearby distress, while predators steer toward unrelated cells. Nutrient gradients continue to contribute to steering. Distressed cells have red outlines.
 
-A fixed seed reproduces a run on the same standard-library/compiler implementation and call sequence. Standard random distributions do not guarantee identical results across different C++ implementations. Reset restores the initial population, resource field, identities, clock, and random seed.
+When dead cells disconnect the internal structure, connected components become separate colonies with preserved identities, world positions, velocity, and lineage. Reproduction spatially partitions a sufficiently large, well-fed colony into parent and offspring after a cooldown; it preserves cell state and reserves instead of teleporting an overlapping clone. New offspring increment generation, while fragments retain it.
 
-## Model boundaries
+## Modules
 
-This is an artificial-life model, not a biochemical solver. Cells use rigid local coordinates within a colony; colonies may overlap and do not currently collide, attack, or form physical bonds. Fission partitions the cell collection and offsets the offspring, rather than simulating membrane mechanics. Nutrient diffusion operates on grid cells with periodic boundaries. Resource and population caps deliberately bound the sandbox; excess deposited nutrients are discarded at field capacity. State is in memory for the running session.
+- `Vector`: vector algebra, rotation, and periodic displacement.
+- `Genome`: validated traits and mutation.
+- `Cell`: metabolism, growth, damage, distress, and division.
+- `NutrientField`: diffusion, regeneration, consumption, and gradient sampling.
+- `Organism`: cell ownership, structural connectivity, energy sharing, mass/inertia, motion, fission, and fragmentation.
+- `SpatialGrid`: periodic spatial indexing and neighbor queries.
+- `InteractionSystem`: contact resolution, predation, adhesion, resource exchange, and social sensing.
+- `SimulationStats`: standalone public statistics data type.
+- `Simulation`: population lifecycle, seeded randomness, fixed ticks, resources, and interactions.
+- `Renderer`: SFML drawing of cells, internal links, adhesive bonds, health, energy, and nutrients.
+- `main`: window, controls, timing, and application error handling.
+
+## Simulation rules
+
+Biology runs at 60 fixed ticks per simulated second. Real-time catch-up is capped at 0.25 seconds per frame. Population is bounded to 128 colonies with 24 cells each; excess growth and fragmentation wait for capacity. The nutrient field regenerates and caps stored resources. Energy sources are nutrients and light; metabolic costs, motion, attacks, repairs, division, and adhesive upkeep consume energy.
+
+Runs with the same seed and update sequence are repeatable within the same C++ standard-library implementation. State is held in memory. This is a discrete artificial-life model: colonies are rigid bodies, and contact resolution is iterative rather than a soft-body membrane solver.
